@@ -34,9 +34,25 @@ class QuerySetStats(object):
         # MC_TODO: Danger in caching this?
         self.update_today()
 
+###
+    def for_day_old(self, dt, date_field=None, aggregate_field=None, aggregate_class=None):
+        date_field = date_field or self.date_field
+        aggregate_class = aggregate_class or self.aggregate_class
+        aggregate_field = aggregate_field or self.aggregate_field
+
+        self.check_date_field(date_field)
+        self.check_qs()
+
+
+
+    def this_day_old(self, date_field=None, aggregate_field=None, aggregate_class=None):
+        return self.for_day_old(self.today, date_field, aggregate_field, aggregate_class)
+
+###
+
     # Aggregates for a specific period of time
 
-    def for_day(self, dt, date_field=None, aggregate_field=None, aggregate_class=None):
+    def for_hour(self, dt, date_field=None, aggregate_field=None, aggregate_class=None):
         date_field = date_field or self.date_field
         aggregate_class = aggregate_class or self.aggregate_class
         aggregate_field = aggregate_field or self.aggregate_field
@@ -48,12 +64,43 @@ class QuerySetStats(object):
             '%s__year' % date_field : dt.year,
             '%s__month' % date_field : dt.month,
             '%s__day' % date_field : dt.day,
+            '%s__hour' % date_field: dt.hour,
         }
         agg = self.qs.filter(**kwargs).aggregate(agg=aggregate_class(aggregate_field))
         return agg['agg']
 
+    def this_hour(self, date_field=None, aggregate_field=None, aggregate_class=None):
+        return self.for_hour(self.today, date_field, aggregate_field, aggregate_class)
+
+    def for_day(self, dt, date_field=None, aggregate_field=None, aggregate_class=None):
+        date_field = date_field or self.date_field
+        aggregate_class = aggregate_class or self.aggregate_class
+        aggregate_field = aggregate_field or self.aggregate_field
+
+        self.check_date_field(date_field)
+        self.check_qs()
+
+        first_day = datetime.datetime(year=dt.year, month=dt.month, day=dt.day, hour=dt.hour)
+        last_day = first_day + relativedelta(hour=23)
+        return self.get_aggregate(first_day, last_day, date_field, aggregate_field, aggregate_class)
+
     def this_day(self, date_field=None, aggregate_field=None, aggregate_class=None):
         return self.for_day(self.today, date_field, aggregate_field, aggregate_class)
+
+    def for_week(self, dt, date_field=None, aggregate_field=None, aggregate_class=None):
+        date_field = date_field or self.date_field
+        aggregate_class = aggregate_class or self.aggregate_class
+        aggregate_field = aggregate_field or self.aggregate_field
+
+        self.check_date_field(date_field)
+        self.check_qs()
+
+        first_day = datetime.datetime(year=dt.year, month=dt.month, day=dt.day, hour=dt.hour)
+        last_day = first_day + relativedelta(day=6)
+        return self.get_aggregate(first_day, last_day, date_field, aggregate_field, aggregate_class)
+
+    def this_week(self, date_field=None, aggregate_field=None, aggregate_class=None):
+        return self.for_week(self.today, date_field, aggregate_field, aggregate_class)
 
     def for_month(self, dt, date_field=None, aggregate_field=None, aggregate_class=None):
         date_field = date_field or self.date_field
@@ -87,8 +134,8 @@ class QuerySetStats(object):
 
     # Aggregate over time intervals
 
-    def time_series(self, start_date, end_date, interval='days', date_field=None, aggregate_field=None, aggregate_class=None):
-        if interval not in ('years', 'months', 'weeks', 'days'):
+    def time_series(self, start_date, end_date, interval='hours', date_field=None, aggregate_field=None, aggregate_class=None):
+        if interval not in ('years', 'months', 'weeks', 'days', 'hours'):
             raise InvalidInterval('Inverval not supported.')
 
         date_field = date_field or self.date_field
@@ -139,7 +186,7 @@ class QuerySetStats(object):
 
     # Utility functions
     def update_today(self):
-        self.today = datetime.date.today()
+        self.today = datetime.datetime.now()
 
     def get_aggregate(self, first_day, last_day, date_field, aggregate_field, aggregate_class):
         kwargs = {'%s__range' % date_field : (first_day, last_day)}
